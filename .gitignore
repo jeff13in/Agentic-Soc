@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+var/
+data/generated/
+data/intel/live_cache.json
+ui/node_modules/
+ui/dist/
+.env
+training/out/

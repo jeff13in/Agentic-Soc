@@ -1,0 +1,19 @@
+# Static asset inventory used by the get_host_context tool and the telemetry generator.
+hosts:
+  WS-001: {role: workstation, os: Windows 11 23H2, owner: alice.chen, department: Engineering, criticality: medium}
+  WS-002: {role: workstation, os: Windows 11 23H2, owner: bob.martin, department: Sales, criticality: low}
+  WS-003: {role: workstation, os: Windows 11 23H2, owner: carol.nguyen, department: Finance, criticality: high}
+  WS-004: {role: workstation, os: Windows 10 22H2, owner: dan.okafor, department: Marketing, criticality: low}
+  WS-005: {role: workstation, os: Windows 11 23H2, owner: erin.walsh, department: HR, criticality: medium}
+  WS-006: {role: workstation, os: Windows 11 23H2, owner: frank.ito, department: Finance, criticality: high}
+  WS-007: {role: workstation, os: Windows 10 22H2, owner: grace.kim, department: Engineering, criticality: medium}
+  WS-008: {role: workstation, os: Windows 11 23H2, owner: hank.silva, department: Support, criticality: low}
+  SRV-DC01: {role: domain_controller, os: Windows Server 2022, owner: it-infra, department: IT, criticality: critical}
+  SRV-FILE01: {role: file_server, os: Windows Server 2019, owner: it-infra, department: IT, criticality: high}
+  SRV-SCCM01: {role: configuration_manager, os: Windows Server 2022, owner: it-infra, department: IT, criticality: high}
+  SRV-WEB01: {role: web_server, os: Windows Server 2019, owner: web-team, department: Engineering, criticality: high}
+admins: [adm.jdoe, adm.rpatel]
+service_accounts: [svc_sccm, svc_backup]
+notes:
+  - IT admins (adm.*) routinely run PowerShell and discovery commands on servers.
+  - SRV-SCCM01 pushes software with PowerShell -EncodedCommand via the CcmExec agent on every workstation.
