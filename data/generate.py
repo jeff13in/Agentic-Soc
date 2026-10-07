@@ -1,12 +1,9 @@
-"""Seeded generator for Sysmon-style Windows telemetry with known attack ground truth.
+"""Seeded generator for benign Sysmon-style Windows telemetry.
 
-Produces a week of activity across 12 hosts: background noise, benign activity that trips
-detection rules (the false-positive population), and multi-step attack scenarios mapped to
-MITRE ATT&CK (the true-positive population). Ground truth is written to a separate file
-that the agent's tools never read.
-
-Use real public telemetry (OTRF Security-Datasets) via data/ingest/otrf.py when you have
-network access; this generator exists so the full pipeline is reproducible offline and in CI.
+Produces a week of activity across the 12 hosts in assets.yml: background noise plus benign
+activity that deliberately trips the detection rules (the false-positive population). It
+generates no attack activity. True positives come from real public telemetry (OTRF
+Security-Datasets) loaded by data/ingest/otrf.py and placed into this same timeline.
 """
 
 from __future__ import annotations
@@ -43,10 +40,6 @@ BENIGN_DOMAINS = {
     "github.com": "140.82.112.3",
     "slack.com": "34.205.12.98",
 }
-WORDS = ["cloud", "secure", "update", "cdn", "sync", "portal", "docs", "office", "mail", "share", "data",
-         "verify", "account", "files", "edge", "msft", "drive", "host", "live", "app"]
-TLDS = ["com", "net", "info", "xyz", "top", "online"]
-
 
 def ps_enc(script: str) -> str:
     return base64.b64encode(script.encode("utf-16-le")).decode()
@@ -71,7 +64,6 @@ class Proc:
 class Generator:
     seed: int = 1337
     events: list[dict[str, Any]] = field(default_factory=list)
-    truth: dict[str, dict[str, Any]] = field(default_factory=dict)
     intel: dict[str, dict[str, Any]] = field(default_factory=lambda: {"ip": {}, "hash": {}, "domain": {}})
     groups: dict[str, str] = field(default_factory=dict)  # event_uid -> generator group (for splits)
 
@@ -83,7 +75,6 @@ class Generator:
         self.servers = [h for h in self.hosts if h not in self.workstations]
         self.admins: list[str] = assets["admins"]
         self._group: str = "background"
-        self._scenario: dict[str, Any] | None = None
         self._ip_octet = 20
         self._roots: dict[str, Proc] = {}
         for d, ip in BENIGN_DOMAINS.items():
@@ -119,8 +110,6 @@ class Generator:
         ev.update(fields)
         self.events.append(ev)
         self.groups[ev["event_uid"]] = self._group
-        if self._scenario is not None:
-            self.truth[ev["event_uid"]] = dict(self._scenario)
         return ev
 
     def root(self, host: str, user: str) -> Proc:
@@ -163,40 +152,8 @@ class Generator:
         self._emit(ts, host, user, 7045, service_name=name, service_path=path,
                    image=f"{SYS32}\\services.exe")
 
-    # ------------------------------------------------------------------ attacker infra
-    def bad_domain(self, known: bool) -> str:
-        d = f"{self.rng.choice(WORDS)}-{self.rng.choice(WORDS)}{self.rng.randint(1, 99)}.{self.rng.choice(TLDS)}"
-        self.intel["domain"][d] = {
-            "domain": d, "age_days": self.rng.randint(1, 25),
-            "reputation": "malicious" if known else "unknown",
-            "malicious_votes": self.rng.randint(4, 15) if known else 0,
-            "categories": ["phishing", "malware"] if known else [],
-        }
-        return d
-
-    def bad_ip(self, known: bool) -> str:
-        ip = f"{self.rng.choice([45, 91, 185, 193, 194])}.{self.rng.randint(1, 254)}.{self._ip_octet}.{self.rng.randint(2, 254)}"
-        self._ip_octet = (self._ip_octet + 1) % 250
-        self.intel["ip"][ip] = {
-            "ip": ip, "abuse_confidence": self.rng.randint(55, 100) if known else self.rng.randint(0, 8),
-            "asn": self.rng.choice(["AS9009 M247", "AS20473 Choopa", "AS16276 OVH", "AS14061 DigitalOcean"]),
-            "country": self.rng.choice(["NL", "RU", "US", "DE", "SG"]),
-            "total_reports": self.rng.randint(20, 400) if known else 0,
-        }
-        return ip
-
-    def bad_hash(self, known: bool, family: str | None) -> str:
-        h = hashlib.sha256(self.rand_name(24).encode()).hexdigest()
-        if known:
-            self.intel["hash"][h] = {"sha256": h, "detections": self.rng.randint(25, 60), "total_engines": 72,
-                                     "family": family, "signed": False, "first_seen": "2026-08-2" + str(self.rng.randint(0, 9)),
-                                     "names": []}
-        # unknown hashes are simply absent from intel (lookup returns not_found)
-        return h
-
-    def begin(self, group: str, scenario: str | None = None, techniques: list[str] | None = None) -> None:
+    def begin(self, group: str) -> None:
         self._group = group
-        self._scenario = {"scenario": scenario, "techniques": techniques or [], "group": group} if scenario else None
 
     # ------------------------------------------------------------------ background
     def background(self) -> None:
@@ -357,24 +314,9 @@ class Generator:
             self.dns(t + timedelta(seconds=1), p, "www.powershellgallery.com")
             self.net(t + timedelta(seconds=2), p, BENIGN_DOMAINS["www.powershellgallery.com"], 443)
 
-    # ------------------------------------------------------------------ attack scenarios (TPs)
-    def attacks(self) -> None:
-        """True positives come from real public telemetry, not from this generator.
-
-        Download OTRF Security-Datasets files into data/raw/ and load them with
-        data/ingest/otrf.py; that loader tags each event with its ATT&CK technique and
-        writes ground truth in the same shape as ``self.truth``:
-        ``{event_uid: {"scenario": str, "techniques": [str], "group": str}}``.
-        """
-        raise NotImplementedError(
-            "Attack telemetry is loaded from OTRF Security-Datasets (data/ingest/otrf.py), not generated."
-        )
-
     # ------------------------------------------------------------------ output
-    def build(self, include_attacks: bool = False) -> Generator:
+    def build(self) -> Generator:
         self.background()
         self.benign()
-        if include_attacks:
-            self.attacks()
         self.events.sort(key=lambda e: e["timestamp"])
         return self

@@ -1,0 +1,10 @@
+id: R002
+name: Office application spawned a shell or script host
+severity: high
+tags: [T1566.001, T1204.002]
+description: Word, Excel, PowerPoint or Outlook started a command shell, script host or LOLBin.
+detection:
+  selection:
+    event_id: 1
+    parent_image|endswith: [\winword.exe, \excel.exe, \powerpnt.exe, \outlook.exe]
+    image|endswith: [\cmd.exe, \powershell.exe, \pwsh.exe, \wscript.exe, \cscript.exe, \mshta.exe, \rundll32.exe, \regsvr32.exe]

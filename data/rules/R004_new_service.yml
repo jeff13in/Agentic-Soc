@@ -1,0 +1,8 @@
+id: R004
+name: New service installed
+severity: medium
+tags: [T1543.003, T1569.002]
+description: The Service Control Manager registered a new service.
+detection:
+  selection:
+    event_id: 7045

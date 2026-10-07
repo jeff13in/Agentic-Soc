@@ -1,0 +1,9 @@
+id: R010
+name: Registry Run key modified
+severity: medium
+tags: [T1547.001]
+description: A value was written under a CurrentVersion\Run key.
+detection:
+  selection:
+    event_id: 13
+    registry_key|contains: ['\CurrentVersion\Run\', '\CurrentVersion\RunOnce\']

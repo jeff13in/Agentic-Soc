@@ -1,0 +1,8 @@
+# Test fixture in OTRF Security-Datasets format. Contents are harmless placeholders.
+datasets:
+  - name: fixture_sample
+    file: sample.jsonl
+    techniques: [T1059.001]
+    host_map: {LABHOST01: WS-007}
+    place_at: "2026-09-02T11:00:00Z"
+    attack_window: {start: "2020-01-01T10:00:30Z", end: "2020-01-01T10:05:00Z"}

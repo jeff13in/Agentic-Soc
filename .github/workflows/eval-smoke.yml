@@ -1,0 +1,48 @@
+name: eval-smoke
+
+# 30-alert regression gate. The heuristic job always runs (no secrets needed). The Claude job
+# runs when the ANTHROPIC_API_KEY secret is set. Both use data/raw/manifest.yml when the OTRF
+# data is committed, otherwise the small fixture in tests/fixtures/otrf.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [heuristic, claude]
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - name: Skip Claude without a key
+        id: gate
+        run: |
+          if [ "${{ matrix.backend }}" = "claude" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "No ANTHROPIC_API_KEY secret; skipping Claude smoke eval."
+          fi
+      - name: Build dataset
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          if [ -f data/raw/manifest.yml ]; then python -m data.build; else python -m data.build --manifest tests/fixtures/otrf/manifest.yml; fi
+      - name: Smoke eval (Claude 30 alerts; heuristic is free, so the full split)
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          LIMIT=""; if [ "${{ matrix.backend }}" = "claude" ]; then LIMIT="--limit 30"; fi
+          python -m evals.run_eval --backend ${{ matrix.backend }} --split test $LIMIT --defenses tagging --workers 4
+      - name: Regression gate
+        if: steps.gate.outputs.skip != 'true'
+        run: python -m evals.gate
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.gate.outputs.skip != 'true'
+        with:
+          name: eval-${{ matrix.backend }}
+          path: evals/results/

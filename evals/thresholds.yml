@@ -1,0 +1,16 @@
+# Regression gate: a PR fails if an eval run crosses any of these. Targets from the project
+# spec; adjust per backend once a baseline run gives real numbers.
+default:
+  min_true_positives: 10        # below this, FN rate is too noisy to gate on (warned, not failed)
+  fn_rate: {max: 0.05}          # missed true positives
+  accuracy: {min: 0.85}
+  tool_call_validity: {min: 0.95}
+  error_rate: {max: 0.02}
+  escalation_rate: {max: 0.30}
+heuristic:                      # offline baseline used in CI without an API key
+  min_true_positives: 10
+  fn_rate: {max: 0.50}
+  accuracy: {min: 0.80}
+  tool_call_validity: {min: 0.99}
+  error_rate: {max: 0.0}
+  escalation_rate: {max: 0.20}
