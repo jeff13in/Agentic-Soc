@@ -41,6 +41,9 @@ jobs:
       - name: Regression gate
         if: steps.gate.outputs.skip != 'true'
         run: python -m evals.gate
+      - name: Injection robustness sweep (heuristic only; the Claude sweep is run manually)
+        if: matrix.backend == 'heuristic'
+        run: python -m evals.adversarial.run_robustness --backend heuristic
       - uses: actions/upload-artifact@v4
         if: always() && steps.gate.outputs.skip != 'true'
         with:

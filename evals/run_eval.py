@@ -105,13 +105,15 @@ def run_eval(backend: str, split: str = "test", limit: int | None = None, repeat
              prompt_version: str | None = None, defenses: list[str] | None = None, model: str | None = None,
              judge: str | None = None, alerts: list[LabelledAlert] | None = None,
              overrides: dict[str, dict[str, dict[str, Any]]] | None = None, write_results: bool = True,
-             tag: str | None = None) -> dict[str, Any]:
+             tag: str | None = None, client: Any = None, verifier: Any = None) -> dict[str, Any]:
+    """Run one eval. ``client``/``verifier`` override the ones built from ``backend`` (tests, custom models)."""
     settings = get_settings()
     cfg = LoopConfig(max_steps=settings.max_steps, max_seconds=settings.max_seconds,
                      prompt_version=prompt_version or settings.prompt_version, defenses=defenses or [])
     _, prompt_hash = load_prompt(cfg.prompt_version)
-    client = make_client(backend, settings, model)
-    verifier = make_verifier(backend, settings) if "verifier" in cfg.defenses else None
+    client = client or make_client(backend, settings, model)
+    if "verifier" in cfg.defenses and verifier is None:
+        verifier = make_verifier(backend, settings)
     base_ctx = build_context(settings)
     store = TraceStore(settings.db_path)
     alerts = alerts if alerts is not None else stratified_subset(load_split(settings.labels_dir, split), limit)

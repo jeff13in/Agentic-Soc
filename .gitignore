@@ -20,3 +20,4 @@ data/labels/dataset.json
 # local eval outputs; copy finished tables into the README
 evals/results/latest.*
 evals/results/results.csv
+evals/results/robustness.*
