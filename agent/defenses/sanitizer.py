@@ -54,6 +54,10 @@ PATTERNS: dict[str, re.Pattern[str]] = {
         r"\b(do\s+not|don'?t|no\s+need\s+to|never|stop)\b.{0,30}"
         r"\b(escalate|investigate|alert|report|look\s*up|check|analy[sz]e|flag|call)\b", re.I | re.S),
     "tool_reference": re.compile(r"\b" + TOOL_NAMES + r"\b", re.I),
+    # JSON-like keys that only appear in this system's tool results or verdicts: forged tool output.
+    "fake_tool_output": re.compile(
+        r"[\"']\s*(status|detections|total_engines|abuse_confidence|malicious_votes|signed|verdict|severity|"
+        r"analyst_override|override|_injection_flags)\s*[\"']\s*:", re.I),
     "fake_role_marker": re.compile(
         r"(<\s*/?\s*(system|assistant|tool_result|untrusted_tool_result|instructions?)\b"
         r"|\[\s*(system|assistant|tool|admin)\s*(message|note)?\s*\]"
@@ -64,6 +68,13 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 def normalize(text: str) -> str:
     """Strip invisible characters and NFKC-fold look-alikes (fullwidth letters, ligatures)."""
     return unicodedata.normalize("NFKC", HIDDEN.sub("", text))
+
+
+def _variants(text: str) -> list[str]:
+    """Invisible characters may hide inside words or stand in for spaces; scan both readings."""
+    if not HIDDEN.search(text):
+        return [unicodedata.normalize("NFKC", text)]
+    return [unicodedata.normalize("NFKC", HIDDEN.sub("", text)), unicodedata.normalize("NFKC", HIDDEN.sub(" ", text))]
 
 
 def _decode_b64(token: str) -> str | None:
@@ -85,11 +96,11 @@ def scan(text: str) -> list[str]:
         return []
     visible = HIDDEN.sub("", text)
     clean = unicodedata.normalize("NFKC", visible)
-    reasons = [name for name, pat in PATTERNS.items() if pat.search(clean)]
+    reasons = [name for v in _variants(text) for name, pat in PATTERNS.items() if pat.search(v)]
     for token in B64_TOKEN.findall(clean):
         decoded = _decode_b64(token)
         if decoded:
-            reasons += [f"base64:{name}" for name, pat in PATTERNS.items() if pat.search(normalize(decoded))]
+            reasons += [f"base64:{name}" for v in _variants(decoded) for name, pat in PATTERNS.items() if pat.search(v)]
     # Obfuscation is only reported alongside a match: on its own it is too weak a signal to flag.
     if reasons and visible != text:
         reasons.append("hidden_unicode")
