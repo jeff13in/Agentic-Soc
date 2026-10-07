@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     # Server-side refusal fallback (Claude API only). Security telemetry can trip safety
     # classifiers; "default" lets the API re-route a declined turn instead of failing it.
     claude_fallbacks: bool = True
+    # The verifier pass uses a cheaper model than the investigator.
+    claude_verifier_model: str = "claude-haiku-4-5"
 
     vllm_base_url: str = "http://localhost:8000/v1"
     vllm_model: str = "soc-qwen-lora"

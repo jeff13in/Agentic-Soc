@@ -11,6 +11,10 @@ from agent.llm.base import LLMResponse, RefusalError, ToolCall
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_TOKENS = 16000
+# Server-side refusal fallback ("default" form) is accepted on these models.
+FALLBACK_MODELS = {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"}
+# The effort parameter is rejected on these older models.
+NO_EFFORT_PREFIXES = ("claude-haiku-4-5", "claude-sonnet-4-5")
 
 
 class AnthropicClient:
@@ -19,7 +23,7 @@ class AnthropicClient:
     def __init__(self, settings: Settings, model: str | None = None, client: anthropic.Anthropic | None = None):
         self.model = model or settings.claude_model
         self.effort = settings.claude_effort
-        self.fallbacks = settings.claude_fallbacks
+        self.fallbacks = settings.claude_fallbacks and self.model in FALLBACK_MODELS
         self._client = client or anthropic.Anthropic()
 
     @staticmethod
@@ -48,12 +52,14 @@ class AnthropicClient:
             "model": self.model,
             "max_tokens": MAX_TOKENS,
             "system": system,
-            "tools": self.to_tools(tools),
             "messages": self.to_wire(messages),
-            "output_config": {"effort": self.effort},
             # System prompt and tools are identical across alerts; cache that prefix.
             "cache_control": {"type": "ephemeral"},
         }
+        if tools:
+            kwargs["tools"] = self.to_tools(tools)
+        if not self.model.startswith(NO_EFFORT_PREFIXES):
+            kwargs["output_config"] = {"effort": self.effort}
         if self.fallbacks:
             resp = self._client.beta.messages.create(betas=[FALLBACK_BETA], fallbacks="default", **kwargs)
         else:

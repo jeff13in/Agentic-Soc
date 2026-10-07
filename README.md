@@ -35,7 +35,20 @@ Targets for v1: FN rate < 5%, accuracy > 85%, tool-call validity > 95%, median <
 - **Loop** (`agent/loop.py`): a hand-written, bounded ReAct loop on native tool calling. It stops on `submit_verdict`, 10 tool calls or 60 seconds. The verdict is validated with Pydantic; one repair retry is allowed, after which the alert is escalated. A plain-text reply gets a nudge. A refusal or API error is recorded on the trace, not raised.
 - **Backends** (`agent/llm/`): one `LLMClient` interface with three adapters. **Claude** uses the Messages API with adaptive thinking, effort `medium`, prompt caching on the static prefix and server-side refusal fallback; it replays the model's own content blocks so thinking stays valid. **vLLM** uses the OpenAI-compatible server. **Heuristic** is a deterministic rule-based policy that runs the pipeline offline and in CI.
 - **Tools** (`agent/tools/`): all read-only. Threat intel has `mock`, `cache` and `live` modes (AbuseIPDB, VirusTotal); evals always use recorded responses. ATT&CK mapping is offline BM25 over technique descriptions, and uses the full MITRE STIX bundle if it's present.
-- **Safety boundary**: no tool can change anything outside the agent's own trace store, so the worst case of a successful prompt injection is a wrong verdict, never an action on a host. Tool results can optionally be wrapped in untrusted-data tags (`--defenses tagging`); the full injection study is Phase 2.
+- **Safety boundary**: no tool can change anything outside the agent's own trace store, so the worst case of a successful prompt injection is a wrong verdict, never an action on a host.
+
+## Prompt-injection defenses
+
+Attackers choose what lands in command lines, file paths, service names and DNS queries, so an LLM reading logs can be steered by planted text. Each defense is a separate switch (`--defenses`), and `--defense-config` runs the four profiles the robustness sweep compares:
+
+| Profile | Prompt | Defenses | What it adds |
+|---|---|---|---|
+| `baseline` | v1 | none | |
+| `spotlight` | v2 | tagging | Tool results wrapped in `<untrusted_tool_result>` envelopes (closing tags in the payload are neutralized); the v2 prompt says tool data is never instructions and that an attempt to steer the verdict is evidence of malice |
+| `sanitize` | v2 | + sanitize | Attacker-controlled fields are scanned for instruction-like text, including base64 (UTF-8 and PowerShell's UTF-16LE), zero-width characters and fullwidth look-alikes. Matches are **annotated, not deleted**, so the injection stays visible as evidence. No false flags on the 8,138-event benign corpus |
+| `full` | v2 | + verifier | A second, cheaper model (Claude Haiku 4.5 for the Claude backend) sees only structured facts: rule metadata, reputation numbers, process names and injection flags, never raw log text. If it disagrees, the alert is escalated to a human rather than flipped |
+
+Least privilege (read-only tools, no response actions) is always on. On clean alerts all four profiles score the same with the heuristic backend, so the defenses don't cost accuracy there. The attack set and the attack-success-rate sweep are the next step.
 
 ## Data
 
@@ -97,16 +110,16 @@ Rules that keep it honest: threat intel runs on recorded responses, the test spl
 ## Roadmap
 
 - [ ] **Phase 1:** OTRF data loaded, first Claude results table in this README, one traced alert walkthrough
-- [ ] **Phase 2:** prompt-injection study. Attacker-controlled fields (command lines, file and service names), five attack types, and defenses measured one at a time: tagging, field sanitization, a verifier pass, least privilege and adversarial fine-tuning
+- [ ] **Phase 2:** prompt-injection study. Defense code done (tagging, sanitizer, verifier, v2 prompt). Still to do: the injected attack set over true-positive alerts (five attack types) and the attack-success-rate table per defense profile and backend; adversarial fine-tuning comes with Phase 3
 - [ ] **Phase 3:** distil filtered Claude traces into QLoRA SFT data for Qwen2.5-7B, serve with vLLM (stretch: SGLang), three-way benchmark
 - [ ] **Phase 4:** React dashboard (alert queue, trace viewer, eval results), Docker Compose, Langfuse tracing
 
 ## Repo layout
 
 ```
-agent/      loop.py, llm/ (Claude, vLLM, heuristic), tools/, prompts/, defenses/, schemas.py, store.py
+agent/      loop.py, llm/ (Claude, vLLM, heuristic), tools/, prompts/ (v1, v2), defenses/ (tagging, sanitizer, verifier), schemas.py, store.py
 api/        FastAPI app and routes
 data/       generate.py (benign week), ingest/otrf.py, rules/, detect.py, build.py, assets.yml, attack/, intel/
-evals/      run_eval.py, metrics.py, gate.py, thresholds.yml, judges/
+evals/      run_eval.py, metrics.py, gate.py, thresholds.yml, defense_configs.py, judges/
 tests/      unit and end-to-end tests; fixtures/otrf is a harmless OTRF-format sample
 ```

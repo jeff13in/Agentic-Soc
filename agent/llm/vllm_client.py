@@ -42,13 +42,13 @@ class VLLMClient:
         return wire
 
     def chat(self, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> LLMResponse:
+        extra = {"tools": [{"type": "function", "function": t} for t in tools], "tool_choice": "auto"} if tools else {}
         resp = self._client.chat.completions.create(
             model=self.model,
             messages=self.to_wire(system, messages),
-            tools=[{"type": "function", "function": t} for t in tools],
-            tool_choice="auto",
             temperature=0,
             max_tokens=4096,
+            **extra,
         )
         choice = resp.choices[0]
         calls = []

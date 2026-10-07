@@ -6,7 +6,8 @@ backends, then scores the evidence with hand-written weights. Uses:
   * a floor every model has to beat.
 Its weights were written alongside the benign generator, so its score on generated false
 positives is optimistic. It never reads free-text instructions, so it is immune to prompt
-injection by construction; that is a property of rules, not a defense worth reporting.
+injection by construction; that is a property of rules, not a defense worth reporting. With the
+sanitize defense on it treats flagged fields as evidence of malice, as the v2 prompt asks an LLM to.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Any
 
+from agent.defenses.sanitizer import flagged_fields
 from agent.llm.base import LLMResponse, ToolCall
 
 MGMT_PARENTS = ("\\ccmexec.exe", "\\msiexec.exe", "\\msmpeng.exe", "\\services.exe")
@@ -141,6 +143,10 @@ class HeuristicClient:
         user = (alert.get("user") or "").lower()
         if host_ctx.get("role") not in (None, "workstation") and user in [a.lower() for a in host_ctx.get("admins", [])]:
             add(-1, "get_host_context", f"{alert.get('user')} is a known admin on {host_ctx.get('role')} {alert['host']}")
+        # Only present when the sanitize defense is on: the loop annotates, this backend never scans text itself.
+        injected = sorted(set(flagged_fields(alert) + flagged_fields(by_tool)))
+        if injected:
+            add(3, "search_logs", f"instruction-like text injected into {', '.join(injected)}", alert["event_uid"])
         if alert["rule_severity"] in ("high", "critical"):
             score += 1
 
