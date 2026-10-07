@@ -21,3 +21,5 @@ data/labels/dataset.json
 evals/results/latest.*
 evals/results/results.csv
 evals/results/robustness.*
+evals/results/benchmark.*
+training/data/

@@ -52,6 +52,17 @@ class LoopConfig:
     max_repairs: int = 1
 
 
+def render_tool_result(rec: ToolCallRecord, defenses: list[str]) -> str:
+    """Exactly what the model sees for one tool call. Shared with training/build_sft_data.py."""
+    if rec.is_error:
+        return json.dumps({"error": rec.error})
+    shown = sanitizer.annotate(rec.result) if "sanitize" in defenses else rec.result
+    content = json.dumps(shown, default=str)
+    if "tagging" in defenses and rec.name != SUBMIT_VERDICT:
+        content = tagging.wrap(rec.name, rec.call_id, content)
+    return content
+
+
 def _summarize_validation(e: ValidationError) -> str:
     return "; ".join(f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in e.errors(include_url=False))
 
@@ -63,7 +74,7 @@ def triage(alert: Alert, client: LLMClient, ctx: ToolContext, cfg: LoopConfig,
         raise ValueError(f"unknown defenses: {sorted(unknown)}")
     if "verifier" in cfg.defenses and verifier is None:
         raise ValueError("the verifier defense needs a verifier (see agent.defenses.make_verifier)")
-    sanitize = "sanitize" in cfg.defenses
+    sanitize = "sanitize" in cfg.defenses  # the alert message; tool results go through render_tool_result
     ctx = replace(ctx, alert=alert)
     system, prompt_hash = load_prompt(cfg.prompt_version)
     specs = tool_specs()
@@ -131,11 +142,7 @@ def triage(alert: Alert, client: LLMClient, ctx: ToolContext, cfg: LoopConfig,
                         rec.is_error, rec.error = True, f"tool failed: {type(e).__name__}: {e}"
                 rec.latency_ms = (time.monotonic() - t_tool) * 1000
                 trace.tool_calls.append(rec)
-                shown = sanitizer.annotate(rec.result) if sanitize and not rec.is_error else rec.result
-                content = json.dumps(shown, default=str) if not rec.is_error else json.dumps({"error": rec.error})
-                if "tagging" in cfg.defenses and call.name != SUBMIT_VERDICT:
-                    content = tagging.wrap(call.name, call.id, content)
-                results.append(ToolResult(call.id, call.name, content, rec.is_error))
+                results.append(ToolResult(call.id, call.name, render_tool_result(rec, cfg.defenses), rec.is_error))
 
             if trace.verdict is not None:
                 break
@@ -149,6 +156,7 @@ def triage(alert: Alert, client: LLMClient, ctx: ToolContext, cfg: LoopConfig,
             if steps >= cfg.max_steps or time.monotonic() - t0 > cfg.max_seconds:
                 final_call = True
                 note = FINAL
+                trace.final_note_step = turn
             messages.append({"role": "tool", "results": results, **({"note": note} if note else {})})
         else:
             trace.status = "budget_exhausted"

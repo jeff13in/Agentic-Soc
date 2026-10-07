@@ -71,6 +71,34 @@ Results are written to `evals/results/robustness.md`. The table for Claude is pe
 
 Two honest caveats. The first version of the sanitizer missed two of these payloads (the forged JSON, and zero-width characters used as word separators). Both gaps are now fixed, but that means the detector has seen this payload set, so its 9/9 detection rate is in-sample. A held-out payload set written after the detector was frozen is needed for an unbiased number. Second, the sanitizer and verifier are only part of the defense: the measured attack success for Claude is the number that matters.
 
+## Fine-tuning and serving (Phase 3)
+
+The plan is to distil Claude's best investigations into Qwen2.5-7B-Instruct with QLoRA, serve it with vLLM, and compare it head to head with Claude. The code is built. The GPU steps (training and serving) haven't been run yet; they're meant for a free Colab/Kaggle GPU and a rented box.
+
+```bash
+# 1. Collect traces on the dev split (never test): clean alerts, plus injected ones for adversarial examples
+python -m evals.run_eval --backend claude --split dev --defense-config spotlight --repeats 2
+python -m evals.adversarial.run_robustness --backend claude --split dev --configs spotlight
+# 2. Distil into chat-format SFT data (training/data/sft_{train,val}.jsonl)
+python -m training.build_sft_data --backend claude [--extra training/handwritten.jsonl]
+# 3. Train on a GPU: training/train_qlora.ipynb on Colab/Kaggle, or
+python -m training.train_qlora --data training/data --out training/out/soc-qwen-lora
+# 4. Serve base + adapter on a GPU box, then benchmark all three
+ADAPTER=training/out/soc-qwen-lora/adapter ./training/serve_vllm.sh
+python -m evals.benchmark --targets "claude,base=vllm:Qwen/Qwen2.5-7B-Instruct,tuned=vllm:soc-qwen-lora"
+```
+
+- **Distillation** (`training/build_sft_data.py`) keeps a trace only if:
+  - it's on the dev split (test-split traces are refused and counted);
+  - it finished cleanly, with no plain-text turns, no tool errors and within the step budget;
+  - the verdict matches the label;
+  - it passes the faithfulness check.
+
+  It keeps one example per alert: the shortest correct investigation. Injected dev alerts the agent still called true positives become adversarial examples that teach the model to ignore planted instructions. Each example reproduces exactly what the model saw (same prompt, alert message and tool-result rendering as the loop); a test checks this byte for byte. Output is the OpenAI/Hugging Face tool-calling chat format, which Qwen2.5's chat template renders directly.
+- **Training** (`training/train_qlora.py`): Unsloth + TRL, 4-bit base, LoRA rank 16, alpha 32, 2 epochs, cosine schedule. Loss is computed on assistant turns only, so the model learns tool choice and verdicts, not to echo logs. The adapter is saved separately and can be pushed to the Hugging Face Hub.
+- **Serving** (`training/serve_vllm.sh`): vLLM's OpenAI-compatible server with the adapter loaded (`--enable-lora`) and Qwen's tool-call parser. It exposes both the base model and `soc-qwen-lora`, so one server covers two of the three benchmark rows. `serve_sglang.sh` is the SGLang alternative, for comparing throughput.
+- **Benchmark** (`evals/benchmark.py`): the same alerts, prompt and defenses for every target, plus throughput under concurrent load. For vLLM, cost per alert is the GPU's hourly price divided by measured throughput.
+
 ## Data
 
 True positives come from real attack telemetry: [OTRF Security-Datasets](https://github.com/OTRF/Security-Datasets), Windows and Sysmon logs recorded while an ATT&CK technique ran in a lab. False positives come from a seeded generator (`data/generate.py`) that produces a week of benign activity across 12 hosts. That activity deliberately trips the rules: SCCM's encoded PowerShell, Defender reading LSASS, vendor services and scheduled tasks, admin discovery commands, OneDrive Run keys and so on.
@@ -132,7 +160,7 @@ Rules that keep it honest: threat intel runs on recorded responses, the test spl
 
 - [ ] **Phase 1:** OTRF data loaded, first Claude results table in this README, one traced alert walkthrough
 - [ ] **Phase 2:** prompt-injection study. Code complete: defenses (tagging, sanitizer, verifier, v2 prompt), 9 payloads in 5 categories, robustness sweep across 4 defense profiles. Still to do: run the sweep on Claude with the OTRF true positives and publish the attack-success table; write a held-out payload set. Adversarial fine-tuning comes with Phase 3
-- [ ] **Phase 3:** distil filtered Claude traces into QLoRA SFT data for Qwen2.5-7B, serve with vLLM (stretch: SGLang), three-way benchmark
+- [ ] **Phase 3:** code complete: trace distillation into SFT data, QLoRA training script and notebook, vLLM and SGLang serve scripts, three-way benchmark. Still to do: collect Claude dev traces, train on a GPU, serve, and publish the benchmark table
 - [ ] **Phase 4:** React dashboard (alert queue, trace viewer, eval results), Docker Compose, Langfuse tracing
 
 ## Repo layout
@@ -141,6 +169,7 @@ Rules that keep it honest: threat intel runs on recorded responses, the test spl
 agent/      loop.py, llm/ (Claude, vLLM, heuristic), tools/, prompts/ (v1, v2), defenses/ (tagging, sanitizer, verifier), schemas.py, store.py
 api/        FastAPI app and routes
 data/       generate.py (benign week), ingest/otrf.py, rules/, detect.py, build.py, assets.yml, attack/, intel/
-evals/      run_eval.py, metrics.py, gate.py, thresholds.yml, defense_configs.py, judges/, adversarial/ (payloads, sweep)
+evals/      run_eval.py, metrics.py, gate.py, benchmark.py, thresholds.yml, defense_configs.py, judges/, adversarial/
+training/   build_sft_data.py, train_qlora.py + .ipynb, serve_vllm.sh, serve_sglang.sh
 tests/      unit and end-to-end tests; fixtures/otrf is a harmless OTRF-format sample
 ```
