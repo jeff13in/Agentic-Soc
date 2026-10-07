@@ -19,15 +19,15 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from agent.defenses import tagging
+from agent.defenses import KNOWN_DEFENSES, sanitizer, tagging
+from agent.defenses.verifier import HeuristicVerifier, Verifier
 from agent.llm.base import LLMClient, RefusalError, ToolResult
-from agent.schemas import Alert, ModelTurnRecord, ToolCallRecord, Trace, Verdict
+from agent.schemas import Alert, ModelTurnRecord, ToolCallRecord, Trace, Verdict, VerdictLabel
 from agent.store import TraceStore
 from agent.tools import SUBMIT_VERDICT, TOOLS, tool_specs
 from agent.tools.base import ToolContext, ToolError
 
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-KNOWN_DEFENSES = {"tagging"}
 
 NUDGE = "Call submit_verdict now. Do not reply in plain text."
 FINAL = "The investigation budget is used up. Call submit_verdict now with the evidence you already have."
@@ -38,9 +38,9 @@ def load_prompt(version: str) -> tuple[str, str]:
     return text, hashlib.sha256(text.encode()).hexdigest()[:12]
 
 
-def alert_message(alert: Alert) -> str:
-    return ("Investigate this alert and submit a verdict.\n\nALERT:\n```json\n"
-            + json.dumps(alert.agent_view(), indent=1) + "\n```")
+def alert_message(alert: Alert, sanitize: bool = False) -> str:
+    view = sanitizer.annotate(alert.agent_view()) if sanitize else alert.agent_view()
+    return "Investigate this alert and submit a verdict.\n\nALERT:\n```json\n" + json.dumps(view, indent=1) + "\n```"
 
 
 @dataclass
@@ -57,17 +57,20 @@ def _summarize_validation(e: ValidationError) -> str:
 
 
 def triage(alert: Alert, client: LLMClient, ctx: ToolContext, cfg: LoopConfig,
-           run_id: str | None = None, store: TraceStore | None = None) -> Trace:
-    unknown = set(cfg.defenses) - KNOWN_DEFENSES
+           run_id: str | None = None, store: TraceStore | None = None, verifier: Verifier | None = None) -> Trace:
+    unknown = set(cfg.defenses) - set(KNOWN_DEFENSES)
     if unknown:
         raise ValueError(f"unknown defenses: {sorted(unknown)}")
+    if "verifier" in cfg.defenses and verifier is None:
+        raise ValueError("the verifier defense needs a verifier (see agent.defenses.make_verifier)")
+    sanitize = "sanitize" in cfg.defenses
     ctx = replace(ctx, alert=alert)
     system, prompt_hash = load_prompt(cfg.prompt_version)
     specs = tool_specs()
     trace = Trace(trace_id=str(uuid.uuid4()), alert_id=alert.alert_id, run_id=run_id, backend=client.backend,
                   model=client.model, prompt_version=cfg.prompt_version, prompt_hash=prompt_hash,
                   defenses=list(cfg.defenses), started_at=datetime.now(UTC))
-    messages: list[dict[str, Any]] = [{"role": "user", "content": alert_message(alert)}]
+    messages: list[dict[str, Any]] = [{"role": "user", "content": alert_message(alert, sanitize)}]
     t0 = time.monotonic()
     steps = repairs = nudges = 0
     final_call = False
@@ -128,7 +131,8 @@ def triage(alert: Alert, client: LLMClient, ctx: ToolContext, cfg: LoopConfig,
                         rec.is_error, rec.error = True, f"tool failed: {type(e).__name__}: {e}"
                 rec.latency_ms = (time.monotonic() - t_tool) * 1000
                 trace.tool_calls.append(rec)
-                content = json.dumps(rec.result, default=str) if not rec.is_error else json.dumps({"error": rec.error})
+                shown = sanitizer.annotate(rec.result) if sanitize and not rec.is_error else rec.result
+                content = json.dumps(shown, default=str) if not rec.is_error else json.dumps({"error": rec.error})
                 if "tagging" in cfg.defenses and call.name != SUBMIT_VERDICT:
                     content = tagging.wrap(call.name, call.id, content)
                 results.append(ToolResult(call.id, call.name, content, rec.is_error))
@@ -153,7 +157,25 @@ def triage(alert: Alert, client: LLMClient, ctx: ToolContext, cfg: LoopConfig,
     except Exception as e:
         trace.status, trace.error = "error", f"{type(e).__name__}: {e}"
 
+    if verifier is not None and "verifier" in cfg.defenses and trace.verdict is not None:
+        _verify(alert, trace, verifier)
     trace.latency_s = time.monotonic() - t0
     if store is not None:
         store.save_trace(trace)
     return trace
+
+
+def _verify(alert: Alert, trace: Trace, verifier: Verifier) -> None:
+    """Run the verifier; on disagreement escalate to a human instead of flipping the verdict."""
+    try:
+        review = verifier.review(alert, trace)
+    except Exception as e:  # a verifier outage or refusal must not wave verdicts through
+        review = HeuristicVerifier().review(alert, trace)
+        review["reason"] = f"verifier failed ({type(e).__name__}); heuristic: {review['reason']}"
+    trace.cost_usd += review.get("cost_usd", 0.0)
+    original = trace.verdict.verdict
+    trace.verifier = {"model": getattr(verifier, "model", None), "agree": review["agree"],
+                      "reason": review["reason"], "original_verdict": original.value, "facts": review.get("facts")}
+    if not review["agree"] and original != VerdictLabel.NEEDS_ESCALATION:
+        trace.verdict = trace.verdict.model_copy(update={"verdict": VerdictLabel.NEEDS_ESCALATION})
+        trace.status = "verifier_escalated"

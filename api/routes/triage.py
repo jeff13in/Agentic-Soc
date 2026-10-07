@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from agent.defenses import make_verifier
 from agent.llm import make_client
 from agent.loop import LoopConfig, triage
 from agent.schemas import Alert, Trace
@@ -21,10 +22,12 @@ class TriageOptions(BaseModel):
 def _run(alert: Alert, opts: TriageOptions) -> Trace:
     s = deps.settings()
     try:
-        client = make_client(opts.backend or s.backend, s, opts.model)
+        backend = opts.backend or s.backend
+        client = make_client(backend, s, opts.model)
+        verifier = make_verifier(backend, s) if "verifier" in opts.defenses else None
         cfg = LoopConfig(max_steps=s.max_steps, max_seconds=s.max_seconds,
                          prompt_version=opts.prompt_version or s.prompt_version, defenses=opts.defenses)
-        return triage(alert, client, deps.tool_context(), cfg, store=deps.store())
+        return triage(alert, client, deps.tool_context(), cfg, store=deps.store(), verifier=verifier)
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(400, str(e)) from e
 

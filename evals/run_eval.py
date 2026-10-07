@@ -23,12 +23,14 @@ from pathlib import Path
 from typing import Any
 
 from agent.config import ROOT, get_settings
+from agent.defenses import make_verifier
 from agent.llm import make_client
 from agent.loop import LoopConfig, load_prompt, triage
 from agent.schemas import LabelledAlert, Trace
 from agent.store import TraceStore
 from agent.tools import build_context
 from evals import metrics
+from evals.defense_configs import DEFENSE_CONFIGS
 
 RESULTS_DIR = ROOT / "evals" / "results"
 CSV_COLUMNS = ["run_id", "created_at", "backend", "model", "prompt_version", "prompt_hash", "defenses", "split",
@@ -109,6 +111,7 @@ def run_eval(backend: str, split: str = "test", limit: int | None = None, repeat
                      prompt_version=prompt_version or settings.prompt_version, defenses=defenses or [])
     _, prompt_hash = load_prompt(cfg.prompt_version)
     client = make_client(backend, settings, model)
+    verifier = make_verifier(backend, settings) if "verifier" in cfg.defenses else None
     base_ctx = build_context(settings)
     store = TraceStore(settings.db_path)
     alerts = alerts if alerts is not None else stratified_subset(load_split(settings.labels_dir, split), limit)
@@ -119,7 +122,7 @@ def run_eval(backend: str, split: str = "test", limit: int | None = None, repeat
         from dataclasses import replace
 
         ctx = replace(base_ctx, event_overrides=(overrides or {}).get(la.alert.alert_id, {}))
-        return triage(la.alert, client, ctx, cfg, run_id=run_id, store=store)
+        return triage(la.alert, client, ctx, cfg, run_id=run_id, store=store, verifier=verifier)
 
     per_run, all_pairs = [], []
     for _ in range(repeats):
@@ -173,13 +176,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repeats", type=int, default=1)
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--prompt-version", default=None)
-    ap.add_argument("--defenses", default="", help="comma-separated, e.g. tagging")
+    ap.add_argument("--defenses", default="", help="comma-separated: tagging, sanitize, verifier")
+    ap.add_argument("--defense-config", choices=sorted(DEFENSE_CONFIGS), default=None,
+                    help="named prompt+defenses profile; overrides --prompt-version and --defenses")
     ap.add_argument("--judge", choices=["claude"], default=None, help="add an LLM faithfulness judge")
     args = ap.parse_args(argv)
 
     backend = args.backend or get_settings().backend
-    res = run_eval(backend, args.split, args.limit, args.repeats, args.workers, args.prompt_version,
-                   [d for d in args.defenses.split(",") if d], args.model, args.judge)
+    prompt_version, defenses = args.prompt_version, [d for d in args.defenses.split(",") if d]
+    if args.defense_config:
+        prompt_version = DEFENSE_CONFIGS[args.defense_config]["prompt_version"]
+        defenses = DEFENSE_CONFIGS[args.defense_config]["defenses"]
+    res = run_eval(backend, args.split, args.limit, args.repeats, args.workers, prompt_version, defenses,
+                   args.model, args.judge, tag=args.defense_config)
     flat = res["flat"]
     print(f"run {flat['run_id']}  split={args.split}  dataset={flat['dataset_version']}  commit={flat['git_commit']}")
     print(markdown_table([flat]))
