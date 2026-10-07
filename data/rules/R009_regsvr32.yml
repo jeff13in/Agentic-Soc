@@ -1,0 +1,9 @@
+id: R009
+name: Regsvr32 execution
+severity: medium
+tags: [T1218.010]
+description: regsvr32.exe ran.
+detection:
+  selection:
+    event_id: 1
+    image|endswith: \regsvr32.exe

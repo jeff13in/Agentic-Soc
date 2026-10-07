@@ -1,0 +1,278 @@
+[
+ {
+  "id": "T1059.001",
+  "name": "PowerShell",
+  "tactic": "execution",
+  "description": "Adversaries abuse PowerShell commands and scripts, often with encoded or obfuscated command lines, hidden windows and download cradles."
+ },
+ {
+  "id": "T1059.003",
+  "name": "Windows Command Shell",
+  "tactic": "execution",
+  "description": "Adversaries use cmd.exe to run commands, batch scripts and chains of utilities."
+ },
+ {
+  "id": "T1059.005",
+  "name": "Visual Basic",
+  "tactic": "execution",
+  "description": "VBScript or VBA macros executed via wscript, cscript or Office applications."
+ },
+ {
+  "id": "T1059.007",
+  "name": "JavaScript",
+  "tactic": "execution",
+  "description": "JScript or JavaScript executed via wscript, cscript or mshta."
+ },
+ {
+  "id": "T1047",
+  "name": "Windows Management Instrumentation",
+  "tactic": "execution",
+  "description": "WMI or wmic used to execute processes locally or on remote nodes."
+ },
+ {
+  "id": "T1053.005",
+  "name": "Scheduled Task",
+  "tactic": "persistence",
+  "description": "Tasks created with schtasks or the Task Scheduler to run programs at logon, startup or on a schedule."
+ },
+ {
+  "id": "T1569.002",
+  "name": "Service Execution",
+  "tactic": "execution",
+  "description": "Programs executed by creating or modifying a Windows service, commonly by remote administration tools."
+ },
+ {
+  "id": "T1204.002",
+  "name": "User Execution: Malicious File",
+  "tactic": "execution",
+  "description": "A user opens a file such as an Office document that runs code."
+ },
+ {
+  "id": "T1566.001",
+  "name": "Spearphishing Attachment",
+  "tactic": "initial-access",
+  "description": "Malicious attachments delivered by email; Office spawning shells is a common follow-on signal."
+ },
+ {
+  "id": "T1547.001",
+  "name": "Registry Run Keys / Startup Folder",
+  "tactic": "persistence",
+  "description": "Programs registered under CurrentVersion Run or RunOnce keys or the startup folder to launch at logon."
+ },
+ {
+  "id": "T1543.003",
+  "name": "Windows Service",
+  "tactic": "persistence",
+  "description": "New or modified Windows services used for persistence or privilege escalation."
+ },
+ {
+  "id": "T1546.003",
+  "name": "WMI Event Subscription",
+  "tactic": "persistence",
+  "description": "WMI event filters and consumers used to trigger execution."
+ },
+ {
+  "id": "T1003.001",
+  "name": "LSASS Memory",
+  "tactic": "credential-access",
+  "description": "Reading or dumping lsass.exe process memory to obtain credentials, e.g. via process access with read rights or minidump utilities."
+ },
+ {
+  "id": "T1003.002",
+  "name": "Security Account Manager",
+  "tactic": "credential-access",
+  "description": "Extracting the SAM hive to obtain local account hashes."
+ },
+ {
+  "id": "T1003.003",
+  "name": "NTDS",
+  "tactic": "credential-access",
+  "description": "Extracting the Active Directory database from domain controllers."
+ },
+ {
+  "id": "T1110",
+  "name": "Brute Force",
+  "tactic": "credential-access",
+  "description": "Repeated authentication attempts to guess passwords."
+ },
+ {
+  "id": "T1555",
+  "name": "Credentials from Password Stores",
+  "tactic": "credential-access",
+  "description": "Reading credentials from browsers or credential managers."
+ },
+ {
+  "id": "T1027",
+  "name": "Obfuscated Files or Information",
+  "tactic": "defense-evasion",
+  "description": "Encoding, packing or obfuscating payloads and command lines, such as base64-encoded PowerShell."
+ },
+ {
+  "id": "T1140",
+  "name": "Deobfuscate/Decode Files or Information",
+  "tactic": "defense-evasion",
+  "description": "Decoding payloads on the host, for example with certutil -decode."
+ },
+ {
+  "id": "T1218.010",
+  "name": "Regsvr32",
+  "tactic": "defense-evasion",
+  "description": "Proxy execution of code through regsvr32.exe, including remote scriptlets."
+ },
+ {
+  "id": "T1218.011",
+  "name": "Rundll32",
+  "tactic": "defense-evasion",
+  "description": "Proxy execution of DLL exports or scripts through rundll32.exe."
+ },
+ {
+  "id": "T1218.005",
+  "name": "Mshta",
+  "tactic": "defense-evasion",
+  "description": "Proxy execution of HTA or script content through mshta.exe."
+ },
+ {
+  "id": "T1036.005",
+  "name": "Masquerading: Match Legitimate Name or Location",
+  "tactic": "defense-evasion",
+  "description": "Malicious files or tasks named or placed to look like legitimate software."
+ },
+ {
+  "id": "T1070.001",
+  "name": "Clear Windows Event Logs",
+  "tactic": "defense-evasion",
+  "description": "Clearing event logs to remove evidence."
+ },
+ {
+  "id": "T1562.001",
+  "name": "Disable or Modify Tools",
+  "tactic": "defense-evasion",
+  "description": "Disabling or tampering with security tools such as antivirus."
+ },
+ {
+  "id": "T1055",
+  "name": "Process Injection",
+  "tactic": "defense-evasion",
+  "description": "Injecting code into the memory of other processes."
+ },
+ {
+  "id": "T1112",
+  "name": "Modify Registry",
+  "tactic": "defense-evasion",
+  "description": "Changing registry keys to hide configuration or enable execution."
+ },
+ {
+  "id": "T1105",
+  "name": "Ingress Tool Transfer",
+  "tactic": "command-and-control",
+  "description": "Downloading tools or payloads onto the host, e.g. with PowerShell WebClient, certutil, bitsadmin or curl."
+ },
+ {
+  "id": "T1071.001",
+  "name": "Application Layer Protocol: Web Protocols",
+  "tactic": "command-and-control",
+  "description": "Command and control over HTTP or HTTPS."
+ },
+ {
+  "id": "T1071.004",
+  "name": "Application Layer Protocol: DNS",
+  "tactic": "command-and-control",
+  "description": "Command and control over DNS queries."
+ },
+ {
+  "id": "T1573",
+  "name": "Encrypted Channel",
+  "tactic": "command-and-control",
+  "description": "Encrypted command and control traffic."
+ },
+ {
+  "id": "T1033",
+  "name": "System Owner/User Discovery",
+  "tactic": "discovery",
+  "description": "Identifying the current user, e.g. whoami or quser."
+ },
+ {
+  "id": "T1087",
+  "name": "Account Discovery",
+  "tactic": "discovery",
+  "description": "Enumerating local or domain accounts, e.g. net user or net group."
+ },
+ {
+  "id": "T1087.002",
+  "name": "Domain Account Discovery",
+  "tactic": "discovery",
+  "description": "Enumerating domain accounts and groups."
+ },
+ {
+  "id": "T1016",
+  "name": "System Network Configuration Discovery",
+  "tactic": "discovery",
+  "description": "Gathering network configuration, e.g. ipconfig, route, arp."
+ },
+ {
+  "id": "T1082",
+  "name": "System Information Discovery",
+  "tactic": "discovery",
+  "description": "Gathering OS and hardware details, e.g. systeminfo."
+ },
+ {
+  "id": "T1482",
+  "name": "Domain Trust Discovery",
+  "tactic": "discovery",
+  "description": "Enumerating domain trusts, e.g. nltest /domain_trusts."
+ },
+ {
+  "id": "T1018",
+  "name": "Remote System Discovery",
+  "tactic": "discovery",
+  "description": "Listing other hosts on the network."
+ },
+ {
+  "id": "T1057",
+  "name": "Process Discovery",
+  "tactic": "discovery",
+  "description": "Listing running processes, e.g. tasklist."
+ },
+ {
+  "id": "T1021.001",
+  "name": "Remote Desktop Protocol",
+  "tactic": "lateral-movement",
+  "description": "Logging on to remote hosts over RDP."
+ },
+ {
+  "id": "T1021.002",
+  "name": "SMB/Windows Admin Shares",
+  "tactic": "lateral-movement",
+  "description": "Using admin shares such as ADMIN$ or C$ to move laterally, often with service creation."
+ },
+ {
+  "id": "T1021.006",
+  "name": "Windows Remote Management",
+  "tactic": "lateral-movement",
+  "description": "Remote execution through WinRM or PowerShell remoting."
+ },
+ {
+  "id": "T1560",
+  "name": "Archive Collected Data",
+  "tactic": "collection",
+  "description": "Compressing or encrypting collected data before exfiltration."
+ },
+ {
+  "id": "T1041",
+  "name": "Exfiltration Over C2 Channel",
+  "tactic": "exfiltration",
+  "description": "Sending data out over the command and control channel."
+ },
+ {
+  "id": "T1486",
+  "name": "Data Encrypted for Impact",
+  "tactic": "impact",
+  "description": "Encrypting files to disrupt availability, as ransomware does."
+ },
+ {
+  "id": "T1490",
+  "name": "Inhibit System Recovery",
+  "tactic": "impact",
+  "description": "Deleting shadow copies or backups."
+ }
+]

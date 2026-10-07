@@ -1,0 +1,10 @@
+id: R001
+name: Encoded PowerShell command line
+severity: high
+tags: [T1059.001, T1027]
+description: PowerShell started with an encoded command argument.
+detection:
+  selection:
+    event_id: 1
+    image|endswith: [\powershell.exe, \pwsh.exe]
+    command_line|re: '(?i)\s-e(nc|ncodedcommand|ncodedc|c)?\s'

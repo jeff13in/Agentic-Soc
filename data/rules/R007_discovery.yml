@@ -1,0 +1,9 @@
+id: R007
+name: Account or system discovery command
+severity: low
+tags: [T1033, T1087, T1016, T1082]
+description: A built-in discovery utility ran. Noisy by design; admins run these daily.
+detection:
+  selection:
+    event_id: 1
+    image|endswith: [\whoami.exe, \net.exe, \net1.exe, \nltest.exe, \ipconfig.exe, \systeminfo.exe, \quser.exe]

@@ -1,0 +1,18 @@
+# Copy to data/raw/manifest.yml and list the OTRF Security-Datasets files you downloaded.
+# Source: https://github.com/OTRF/Security-Datasets (datasets/atomic/windows/...).
+# Each dataset's metadata page lists its ATT&CK techniques and the lab host names.
+#
+# Paths are relative to this manifest's directory.
+datasets:
+  - name: example_dataset              # any stable, unique name (used in event ids and splits)
+    file: example_dataset.zip          # .zip, .json or .jsonl as downloaded
+    techniques: [T1059.001]            # from the dataset metadata
+    host_map:                          # lab host -> host in data/assets.yml
+      WORKSTATION5.theshire.local: WS-003
+    # default_host: WS-003             # used for lab hosts not in host_map
+    # place_at: "2026-09-03T14:00:00Z" # where the first event lands; default is a deterministic slot
+    # Which events are the attack. Without either key every event in the file is labelled
+    # attack; narrowing it avoids labelling lab background noise as true positives.
+    # attack_window: {start: "2020-09-21T19:17:00Z", end: "2020-09-21T19:20:00Z"}  # original timestamps
+    # attack_filter:                   # all fields must match; any listed substring matches
+    #   parent_image: [example.exe]

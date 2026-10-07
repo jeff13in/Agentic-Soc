@@ -1,0 +1,10 @@
+id: R006
+name: Scheduled task created from the command line
+severity: medium
+tags: [T1053.005]
+description: schtasks.exe was used to create a task.
+detection:
+  selection:
+    event_id: 1
+    image|endswith: \schtasks.exe
+    command_line|contains: /create

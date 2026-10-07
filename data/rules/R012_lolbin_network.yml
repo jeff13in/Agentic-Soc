@@ -1,0 +1,11 @@
+id: R012
+name: Script host or LOLBin made an external network connection
+severity: medium
+tags: [T1071.001, T1105]
+description: A scripting engine or signed proxy binary connected to a non-private address.
+detection:
+  selection:
+    event_id: 3
+    image|endswith: [\powershell.exe, \pwsh.exe, \rundll32.exe, \regsvr32.exe, \mshta.exe, \certutil.exe, \wscript.exe, \cscript.exe]
+  filter:
+    dst_ip|re: '^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.)'

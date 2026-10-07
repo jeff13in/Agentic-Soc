@@ -1,0 +1,4 @@
+# Hand-checked labels that override the automatic ones, keyed by alert_id.
+# Use this for alerts that `python -m data.build` labels "review" (OTRF lab background).
+labels: {}
+#  R007-otrf-0123456789ab: false_positive

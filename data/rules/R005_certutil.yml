@@ -1,0 +1,9 @@
+id: R005
+name: Certutil execution
+severity: medium
+tags: [T1105, T1140]
+description: certutil.exe ran. Deliberately broad; most hits are certificate administration.
+detection:
+  selection:
+    event_id: 1
+    image|endswith: \certutil.exe

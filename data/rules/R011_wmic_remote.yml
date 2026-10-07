@@ -1,0 +1,10 @@
+id: R011
+name: WMIC remote node or process creation
+severity: medium
+tags: [T1047]
+description: wmic.exe targeted a remote node or created a process.
+detection:
+  selection:
+    event_id: 1
+    image|endswith: \wmic.exe
+    command_line|contains: ['/node:', 'process call create']

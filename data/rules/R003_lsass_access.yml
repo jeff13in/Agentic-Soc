@@ -1,0 +1,10 @@
+id: R003
+name: Process opened LSASS with read access
+severity: critical
+tags: [T1003.001]
+description: A process requested memory-read rights on lsass.exe.
+detection:
+  selection:
+    event_id: 10
+    target_image|endswith: \lsass.exe
+    granted_access: ['0x1010', '0x1410', '0x1438', '0x143a', '0x1fffff', '0x1f3fff']

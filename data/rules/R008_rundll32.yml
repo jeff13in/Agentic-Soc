@@ -1,0 +1,10 @@
+id: R008
+name: Rundll32 invoking a DLL export
+severity: medium
+tags: [T1218.011]
+description: rundll32.exe called a DLL entry point.
+detection:
+  selection:
+    event_id: 1
+    image|endswith: \rundll32.exe
+    command_line|re: '(?i)\.(dll|cpl)\s*,'
