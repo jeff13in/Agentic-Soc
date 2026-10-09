@@ -1,0 +1,16 @@
+.git
+**/__pycache__
+.pytest_cache
+.ruff_cache
+var
+data/generated
+data/labels/*.jsonl
+data/labels/dataset.json
+evals/results/*
+!evals/results/.gitkeep
+training/out
+training/data
+ui/node_modules
+ui/dist
+.env
+data/raw

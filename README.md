@@ -99,6 +99,32 @@ python -m evals.benchmark --targets "claude,base=vllm:Qwen/Qwen2.5-7B-Instruct,t
 - **Serving** (`training/serve_vllm.sh`): vLLM's OpenAI-compatible server with the adapter loaded (`--enable-lora`) and Qwen's tool-call parser. It exposes both the base model and `soc-qwen-lora`, so one server covers two of the three benchmark rows. `serve_sglang.sh` is the SGLang alternative, for comparing throughput.
 - **Benchmark** (`evals/benchmark.py`): the same alerts, prompt and defenses for every target, plus throughput under concurrent load. For vLLM, cost per alert is the GPU's hourly price divided by measured throughput.
 
+## Dashboard and Docker (Phase 4)
+
+![Trace viewer: an alert investigated step by step, with the verdict, evidence and verifier result](docs/dashboard-trace.png)
+
+*Trace viewer, showing the offline heuristic backend on the test fixture.*
+
+A React + Vite + Tailwind dashboard (`ui/`) over the FastAPI service:
+
+- **Alert queue**: filter by split, rule and host. Ground-truth labels are shown for evaluation only; the agent never sees them.
+- **Alert detail**: the alert, its raw event and command line (marked attacker-controlled), and a panel to run triage with any configured backend and defense profile. Previous runs are listed underneath.
+- **Trace viewer**: the verdict, evidence and recommended actions, the verifier's decision, and a step-by-step timeline of every tool call with its arguments and result. Each step shows tokens, latency and cost.
+- **Evals**: stat tiles and a confusion matrix for any eval run, the run history, and the prompt-injection results (attack success by defense profile and by payload category) when a sweep has been run.
+
+Light and dark themes are both supported, and the pages work at phone width. Status colors always come with an icon and a text label.
+
+```bash
+# Docker: API + dashboard at http://localhost:8080
+docker compose up --build              # ANTHROPIC_API_KEY=... enables the Claude backend
+
+# Or locally, in two terminals
+uvicorn api.main:app --reload          # API on :8000
+cd ui && npm install && npm run dev    # dashboard on :5173, proxies /api to :8000
+```
+
+On first start, the API container builds the dataset from `data/raw/manifest.yml` if you mounted the OTRF data. Otherwise it builds the benign week plus the test fixture. Eval, robustness and benchmark outputs in `evals/results/` are mounted so the dashboard shows them. CI type-checks, unit-tests and builds the UI on every push.
+
 ## Data
 
 True positives come from real attack telemetry: [OTRF Security-Datasets](https://github.com/OTRF/Security-Datasets), Windows and Sysmon logs recorded while an ATT&CK technique ran in a lab. False positives come from a seeded generator (`data/generate.py`) that produces a week of benign activity across 12 hosts. That activity deliberately trips the rules: SCCM's encoded PowerShell, Defender reading LSASS, vendor services and scheduled tasks, admin discovery commands, OneDrive Run keys and so on.
@@ -161,7 +187,7 @@ Rules that keep it honest: threat intel runs on recorded responses, the test spl
 - [ ] **Phase 1:** OTRF data loaded, first Claude results table in this README, one traced alert walkthrough
 - [ ] **Phase 2:** prompt-injection study. Code complete: defenses (tagging, sanitizer, verifier, v2 prompt), 9 payloads in 5 categories, robustness sweep across 4 defense profiles. Still to do: run the sweep on Claude with the OTRF true positives and publish the attack-success table; write a held-out payload set. Adversarial fine-tuning comes with Phase 3
 - [ ] **Phase 3:** code complete: trace distillation into SFT data, QLoRA training script and notebook, vLLM and SGLang serve scripts, three-way benchmark. Still to do: collect Claude dev traces, train on a GPU, serve, and publish the benchmark table
-- [ ] **Phase 4:** React dashboard (alert queue, trace viewer, eval results), Docker Compose, Langfuse tracing
+- [ ] **Phase 4:** code complete: React dashboard (alert queue, alert detail with triage, trace viewer, evals and robustness), Docker Compose (API + nginx-served UI), UI checks in CI. Still to do: build and run the Docker images (Docker Hub was unreachable in the environment this was built in), record the demo GIF; Langfuse tracing not started
 
 ## Repo layout
 
@@ -171,5 +197,7 @@ api/        FastAPI app and routes
 data/       generate.py (benign week), ingest/otrf.py, rules/, detect.py, build.py, assets.yml, attack/, intel/
 evals/      run_eval.py, metrics.py, gate.py, benchmark.py, thresholds.yml, defense_configs.py, judges/, adversarial/
 training/   build_sft_data.py, train_qlora.py + .ipynb, serve_vllm.sh, serve_sglang.sh
+ui/         React + Vite + Tailwind dashboard; Dockerfile + nginx.conf
+docker/     API container entrypoint (builds the dataset on first start)
 tests/      unit and end-to-end tests; fixtures/otrf is a harmless OTRF-format sample
 ```
