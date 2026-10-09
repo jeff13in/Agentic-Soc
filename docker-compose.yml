@@ -1,0 +1,37 @@
+# One-command run:  docker compose up --build   then open http://localhost:8080
+# Set ANTHROPIC_API_KEY in your shell or .env to enable the Claude backend; without it the
+# dashboard still works with the offline heuristic backend.
+services:
+  api:
+    build: .
+    environment:
+      SOC_BACKEND: ${SOC_BACKEND:-heuristic}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SOC_VLLM_BASE_URL: ${SOC_VLLM_BASE_URL:-http://host.docker.internal:8000/v1}
+      SOC_INTEL_MODE: ${SOC_INTEL_MODE:-mock}
+    volumes:
+      - ./data/raw:/app/data/raw:ro        # OTRF datasets + manifest.yml, if downloaded
+      - generated:/app/data/generated
+      - labels:/app/data/labels
+      - state:/app/var
+      - ./evals/results:/app/evals/results  # eval / robustness / benchmark outputs shown on the dashboard
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  ui:
+    build: ./ui
+    ports:
+      - "8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  generated:
+  labels:
+  state:

@@ -8,6 +8,7 @@ from agent.llm import make_client
 from agent.loop import LoopConfig, triage
 from agent.schemas import Alert, Trace
 from api import deps
+from evals.defense_configs import DEFENSE_CONFIGS
 
 router = APIRouter(prefix="/triage", tags=["triage"])
 
@@ -15,12 +16,19 @@ router = APIRouter(prefix="/triage", tags=["triage"])
 class TriageOptions(BaseModel):
     backend: str | None = None
     model: str | None = None
+    profile: str | None = None  # named defense profile; overrides prompt_version and defenses
     prompt_version: str | None = None
     defenses: list[str] = []
 
 
 def _run(alert: Alert, opts: TriageOptions) -> Trace:
     s = deps.settings()
+    if opts.profile:
+        if opts.profile not in DEFENSE_CONFIGS:
+            raise HTTPException(400, f"unknown profile {opts.profile!r}")
+        cfg_profile = DEFENSE_CONFIGS[opts.profile]
+        opts = opts.model_copy(update={"prompt_version": cfg_profile["prompt_version"],
+                                       "defenses": list(cfg_profile["defenses"])})
     try:
         backend = opts.backend or s.backend
         client = make_client(backend, s, opts.model)
