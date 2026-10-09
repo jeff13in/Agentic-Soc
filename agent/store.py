@@ -81,6 +81,13 @@ class TraceStore:
         rows = self._con.execute("SELECT trace_json FROM traces WHERE run_id = ?", (run_id,)).fetchall()
         return [Trace.model_validate_json(r["trace_json"]) for r in rows]
 
+    def all_traces(self, backend: str | None = None) -> list[Trace]:
+        sql, params = "SELECT trace_json FROM traces", []
+        if backend:
+            sql += " WHERE backend = ?"
+            params.append(backend)
+        return [Trace.model_validate_json(r["trace_json"]) for r in self._con.execute(sql + " ORDER BY created_at", params)]
+
     def save_eval_run(self, row: dict[str, Any]) -> None:
         with self._lock, self._con:
             self._con.execute(

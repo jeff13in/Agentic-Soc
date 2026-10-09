@@ -136,6 +136,7 @@ class Trace(BaseModel):
     output_tokens: int = 0
     cost_usd: float = 0.0
     error: str | None = None
+    final_note_step: int | None = None  # turn after which the loop appended its "budget used up" note
 
     @property
     def final_label(self) -> VerdictLabel:
